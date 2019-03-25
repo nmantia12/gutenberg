@@ -6,6 +6,7 @@ import {
 	flatMap,
 	map,
 	mapValues,
+	noop,
 	pickBy,
 	some,
 } from 'lodash';
@@ -136,53 +137,62 @@ describe( 'Block transforms', () => {
 		}
 	} );
 
-	it( 'should contain the expected transforms', async () => {
-		const transforms = mapValues(
-			pickBy(
-				transformStructure,
-				( { availableTransforms } ) => availableTransforms,
-			),
-			( { availableTransforms, originalBlock } ) => {
-				return { originalBlock, availableTransforms };
-			}
-		);
-		expect(
-			transforms
-		).toEqual( EXPECTED_TRANSFORMS );
-	} );
+	if ( ! process.env.POPULAR_PLUGINS ) {
+		it( 'should contain the expected transforms', async () => {
+			const transforms = mapValues(
+				pickBy(
+					transformStructure,
+					( { availableTransforms } ) => availableTransforms,
+				),
+				( { availableTransforms, originalBlock } ) => {
+					return { originalBlock, availableTransforms };
+				}
+			);
+			expect(
+				transforms
+			).toEqual( EXPECTED_TRANSFORMS );
+		} );
+	}
 
 	describe( 'correctly transform', () => {
-		beforeAll( async () => {
-			await createNewPost();
-		} );
-
-		beforeEach( async () => {
-			await setPostContent( '' );
-			await page.click( '.editor-post-title .editor-post-title__block' );
-		} );
-
 		const testTable = flatMap(
 			EXPECTED_TRANSFORMS,
 			( { originalBlock, availableTransforms }, fixture ) => (
 				map(
 					availableTransforms,
-					( distinationBlock ) => ( [
+					( destinationBlock ) => ( [
 						originalBlock,
 						fixture,
-						distinationBlock,
+						destinationBlock,
 					] )
 				)
 			)
 		);
 
-		it.each( testTable )(
-			'block %s in fixture %s into the %s block',
-			async ( originalBlock, fixture, distinationBlock ) => {
-				const { content } = transformStructure[ fixture ];
-				expect(
-					await getTransformResult( content, distinationBlock )
-				).toMatchSnapshot();
-			}
-		);
+		if ( ! process.env.POPULAR_PLUGINS ) {
+			beforeAll( async () => {
+				await createNewPost();
+			} );
+
+			beforeEach( async () => {
+				await setPostContent( '' );
+				await page.click( '.editor-post-title .editor-post-title__block' );
+			} );
+
+			it.each( testTable )(
+				'block %s in fixture %s into the %s block',
+				async ( originalBlock, fixture, destinationBlock ) => {
+					const { content } = transformStructure[ fixture ];
+					expect(
+						await getTransformResult( content, destinationBlock )
+					).toMatchSnapshot();
+				}
+			);
+		} else {
+			it.skip.each( testTable )(
+				'block %s in fixture %s into the %s block',
+				noop
+			);
+		}
 	} );
 } );
