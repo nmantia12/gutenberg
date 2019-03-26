@@ -182,8 +182,9 @@ export class RichText extends Component {
 	 * @return {Object} The current record (value and selection).
 	 */
 	getRecord() {
-		const { formats, replacements, text } = this.formatToValue( this.props.value );
-		const { start, end, selectedFormat } = this.state;
+		const { value, selectionStart: start, selectionEnd: end } = this.props;
+		const { formats, replacements, text } = this.formatToValue( value );
+		const { selectedFormat } = this.state;
 
 		return { formats, replacements, text, start, end, selectedFormat };
 	}
@@ -407,9 +408,9 @@ export class RichText extends Component {
 			selectedFormat = this.formatPlaceholder.length;
 
 			if ( selectedFormat > 0 ) {
-				formats[ this.state.start ] = this.formatPlaceholder;
+				formats[ this.props.selectionStart ] = this.formatPlaceholder;
 			} else {
-				delete formats[ this.state.start ];
+				delete formats[ this.props.selectionStart ];
 			}
 		} else if ( selectedFormat > 0 ) {
 			const formatsBefore = formats[ start - 1 ] || [];
@@ -423,9 +424,9 @@ export class RichText extends Component {
 
 			source = source.slice( 0, selectedFormat );
 
-			formats[ this.state.start ] = source;
+			formats[ this.props.selectionStart ] = source;
 		} else {
-			delete formats[ this.state.start ];
+			delete formats[ this.props.selectionStart ];
 		}
 
 		const change = { formats, replacements, text, start, end, selectedFormat };
@@ -469,7 +470,7 @@ export class RichText extends Component {
 		const value = this.createRecord();
 		const { start, end, formats } = value;
 
-		if ( start !== this.state.start || end !== this.state.end ) {
+		if ( start !== this.props.selectionStart || end !== this.props.selectionEnd ) {
 			const isCaretWithinFormattedText = this.props.isCaretWithinFormattedText;
 
 			if ( ! isCaretWithinFormattedText && formats[ start ] ) {
@@ -496,6 +497,8 @@ export class RichText extends Component {
 			if ( collapsed ? selectedFormat > 0 : formatsAfter.length > 0 ) {
 				this.recalculateBoundaryStyle();
 			}
+
+			this.props.onSelectionChange( start, end );
 		}
 	}
 
@@ -545,6 +548,7 @@ export class RichText extends Component {
 
 		this.savedContent = this.valueToFormat( record );
 		this.props.onChange( this.savedContent );
+		this.props.onSelectionChange( start, end );
 		this.setState( { start, end, selectedFormat } );
 
 		if ( ! withoutHistory ) {
@@ -831,6 +835,7 @@ export class RichText extends Component {
 
 		const newPos = value.start + ( isReverse ? -1 : 1 );
 
+		this.props.onSelectionChange( start, end );
 		this.setState( { start: newPos, end: newPos } );
 		this.applyRecord( {
 			...value,
@@ -966,8 +971,8 @@ export class RichText extends Component {
 			// Maintain the previous selection if the instance is currently
 			// selected.
 			if ( isSelected ) {
-				record.start = this.state.start;
-				record.end = this.state.end;
+				record.start = this.props.selectionStart;
+				record.end = this.props.selectionEnd;
 			}
 
 			this.applyRecord( record );
@@ -1191,12 +1196,30 @@ const RichTextContainer = compose( [
 			};
 		}
 
-		// Ensures that only one RichText component can be focused.
-		return {
+		const props = {
+			// Ensures that only one RichText component can be focused.
 			isSelected: context.isSelected && context.focusedElement === ownProps.instanceId,
 			setFocusedElement: context.setFocusedElement,
 			clientId: context.clientId,
 		};
+
+		const identifier = ownProps.identifier || ownProps.instanceId;
+
+		if (
+			context.selectionStart &&
+			context.selectionStart.identifier === identifier
+		) {
+			props.selectionStart = context.selectionStart.offset;
+		}
+
+		if (
+			context.selectionEnd &&
+			context.selectionEnd.identifier === identifier
+		) {
+			props.selectionEnd = context.selectionEnd.offset;
+		}
+
+		return props;
 	} ),
 	withSelect( ( select ) => {
 		// This should probably be moved to the block editor settings.
@@ -1210,17 +1233,20 @@ const RichTextContainer = compose( [
 			formatTypes: getFormatTypes(),
 		};
 	} ),
-	withDispatch( ( dispatch ) => {
+	withDispatch( ( dispatch, { identifier, clientId, instanceId } ) => {
 		const {
 			__unstableMarkLastChangeAsPersistent,
 			enterFormattedText,
 			exitFormattedText,
+			selectionChange,
 		} = dispatch( 'core/block-editor' );
 
 		return {
 			onCreateUndoLevel: __unstableMarkLastChangeAsPersistent,
 			onEnterFormattedText: enterFormattedText,
 			onExitFormattedText: exitFormattedText,
+			onSelectionChange: ( start, end ) =>
+				selectionChange( clientId, identifier || instanceId, start, end ),
 		};
 	} ),
 	withSafeTimeout,
