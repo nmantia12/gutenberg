@@ -16,7 +16,6 @@ body.gutenberg_page_gutenberg-widgets {
 // The modals are shown outside the .blocks-widgets-container wrapper, they need these styles
 .components-modal__frame {
 	@include reset;
-
 }
 
 .blocks-widgets-container {
